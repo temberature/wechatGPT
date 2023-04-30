@@ -8,6 +8,13 @@ import os
 import time
 import datetime
 import platform
+from wechat_utils import activate_wechat_and_send_message
+
+# Your other code here
+
+# # Call the function to activate WeChat and send a message
+# message = "Hello, WeChat!"
+# activate_wechat_and_send_message(message)
 
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
@@ -59,29 +66,29 @@ def paste_and_send_message():
     '''
     os.system(f"osascript -e '{applescript}'")
 
-def activate_wechat_and_send_message(message):
-    message = escape_applescript_string(message)
-    applescript = f'''
-    set the clipboard to "{message}"
-    tell application "System Events"
-        set is_running to (count (every process whose bundle identifier is "com.tencent.xinWeChat")) > 0
-    end tell
+# def activate_wechat_and_send_message(message):
+#     message = escape_applescript_string(message)
+#     applescript = f'''
+#     set the clipboard to "{message}"
+#     tell application "System Events"
+#         set is_running to (count (every process whose bundle identifier is "com.tencent.xinWeChat")) > 0
+#     end tell
 
-    if is_running then
-        tell application "WeChat"
-            activate
-            delay 1
-            tell application "System Events"
-                keystroke "v" using command down
-                key code 36
-            end tell
-        end tell
-    else
-        display alert "WeChat is not running."
-    end if
-    '''
+#     if is_running then
+#         tell application "WeChat"
+#             activate
+#             delay 1
+#             tell application "System Events"
+#                 keystroke "v" using command down
+#                 key code 36
+#             end tell
+#         end tell
+#     else
+#         display alert "WeChat is not running."
+#     end if
+#     '''
 
-    os.system(f"osascript -e '{applescript}'")
+#     os.system(f"osascript -e '{applescript}'")
 
 # message = "你好，这是一个测试消息！"
 # activate_wechat_and_send_message(message)

@@ -1,1 +1,7 @@
-*.json
+history/*.json
+config.json
+result.json
+screenshot.png
+__pycache__/
+.DS_Store
+```
