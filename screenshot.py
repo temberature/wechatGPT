@@ -7,6 +7,7 @@ import openai
 import os
 import time
 import datetime
+import platform
 
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
@@ -38,6 +39,9 @@ string2 = "刘浩存 (应该是某次采访"
 
 def escape_applescript_string(s):
     return s.replace('"', '\\"').replace('\\', '\\\\')
+
+def escape_windows_string(s):
+    return s.replace('"', '\\"').replace("'", "\\'")
 
 def set_clipboard(text):
     text = escape_applescript_string(text)
@@ -278,13 +282,14 @@ def autoreply():
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     file_name = f"{fixed_name}_{current_date}.json".replace('/', '_')
 
+    file_path = "history/" + file_name
     # 检查文件是否存在
-    if not os.path.exists(file_name):
+    if not os.path.exists(file_path):
         # 如果文件不存在，则创建文件
-        with open(file_name, 'w') as f:
+        with open(file_path, 'w') as f:
             f.write("[]")
 
-    with open(file_name, 'rb+') as f:
+    with open(file_path, 'rb+') as f:
         old = json.loads(f.read())
         for item in merged_data:
             found = False
