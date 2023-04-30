@@ -123,18 +123,6 @@ def autoreply():
 
     url = "http://192.168.10.8:8089/api/tr-run/"
 
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-AU,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
-        "Connection": "keep-alive",
-        "Content-Type": "multipart/form-data",
-        "DNT": "1",
-        "Origin": "http://192.168.10.8:8089",
-        "Referer": "http://192.168.10.8:8089/",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
-        "X-Requested-With": "XMLHttpRequest",
-    }
-
     # 替换此路径为您的截图文件路径
     screenshot_path = file_path
 
@@ -234,8 +222,8 @@ def autoreply():
             isMsg = True
         elif abs(ltpoint[0] - second_largest_x) <= 5:
             isName = True 
-        print(item)
-        print(isMsg, isName)
+        # print(item)
+        # print(isMsg, isName)
         if isMsg:
             type = "msg"
         elif isName:
@@ -269,9 +257,6 @@ def autoreply():
 
             if not merged:
                 merged_data.append(item)
-
-
-
 
     for item in data:
         item[1] = remove_number_prefix(item[1])
@@ -310,24 +295,31 @@ def autoreply():
                     break
             
             if not found:
-                
+                requested = False
                 if (contains_keyword(item[1], config["group_chat_keyword"]) and "@" not in item[1] and item[3] == "msg") or "@全" in item[1]:
                     history = ""
                     name = ""
-                    if old.count(item) > 0:
+                    if len(old) > 0:
                         last_item = old[-1]
                         old = old[:-1]
                         name = last_item[1]
-                        history = '\n'.join((item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in old)
+                    history = '\n'.join((item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in old[-100:])
+                    
                     prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，如果无法提供有效的回复，返回0，不然请用50字以内回答或建议: {item[1]}。\n"
                     print(prompt)
-                    response = get_completion(prompt) + "\n(人工智能生成，可能有错)"
-                    print(response)
+                    
                     message = "Hello, this is a test message!"
-                    if any(name in group_name for name in config["group_name_white_list"]) and (not "无法" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response) :
-                        activate_wechat_and_send_message(response)
-                    # activate_wechat_and_send_message(response)
-                    time.sleep(20)
+                    if any(name in group_name for name in config["group_name_white_list"]):
+                        response = get_completion(prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
+                        print(response)
+                        if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
+                            activate_wechat_and_send_message(response)
+                    else:
+                        response = get_completion(prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
+                        print(response)
+                        # activate_wechat_and_send_message(response)
+                    requested = True
+                    
 
                 old.append(item)    
                 # print(old)
@@ -335,6 +327,8 @@ def autoreply():
                 f.seek(0)
                 f.write(json.dumps(old).encode('utf-8'))
                 f.truncate()  # 删除文件中任何剩余的内容
+                if requested:  
+                    time.sleep(20)
 
 while True:
     autoreply()
