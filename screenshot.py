@@ -113,7 +113,7 @@ def contains_keyword(text, keywords):
 
 def autoreply():
     # 将鼠标移动到指定坐标
-    pyautogui.moveTo(200, 347)
+    pyautogui.moveTo(200, 300)
 
     # 在当前位置执行鼠标单击
     pyautogui.click()
@@ -229,7 +229,7 @@ def autoreply():
         ltpoint = item[0][0]
         isMsg = False
         isName = False
-        if abs(ltpoint[0] - max_x_coord) <= 5 or ltpoint[0] - max_x_coord > 100:
+        if abs(ltpoint[0] - max_x_coord) <= 5:
             isMsg = True
         elif abs(ltpoint[0] - second_largest_x) <= 5:
             isName = True 
@@ -287,7 +287,7 @@ def autoreply():
 
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    file_name = f"{fixed_name}_{current_date}.json".replace('/', '_')
+    file_name = f"{fixed_name}_{current_date}.json".replace('/', '_').replace('|', '_')
 
     file_path = "history/" + file_name
     # 检查文件是否存在
@@ -296,13 +296,15 @@ def autoreply():
         with open(file_path, 'w') as f:
             f.write("[]")
 
+    reverse_merged_data = sorted(merged_data, key=lambda item: item[0][0][1], reverse=True)
     with open(file_path, 'rb+') as f:
         old = json.loads(f.read())
-        for item in merged_data:
+        for item in reverse_merged_data:
+            
             found = False
             for old_item in old:
                 similarity_score = similarity(item[1], old_item[1])
-                if similarity_score >= 0.8:
+                if similarity_score >= 0.6:
                     found = True
                     break
             
@@ -333,14 +335,17 @@ def autoreply():
                     requested = True
                     
 
-                old.append(item)    
-                # print(old)
-                # 从文件开头开始写入
-                f.seek(0)
-                f.write(json.dumps(old).encode('utf-8'))
-                f.truncate()  # 删除文件中任何剩余的内容
-                if requested:  
+                
+                if requested:
                     time.sleep(20)
+                    for item in merged_data:
+                        old.append(item)    
+                    # print(old)
+                    # 从文件开头开始写入
+                    f.seek(0)
+                    f.write(json.dumps(old).encode('utf-8'))
+                    f.truncate()  # 删除文件中任何剩余的内容
+                    break
 
 while True:
     autoreply()

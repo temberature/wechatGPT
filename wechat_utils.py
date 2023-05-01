@@ -46,11 +46,11 @@ def activate_wechat_and_send_message_windows(message):
     set_clipboard_windows(message)
 
     # You might need to adjust the sleep duration and hotkey to switch to WeChat
-    time.sleep(1)
-    keyboard.press('alt')
-    keyboard.press('tab')
-    keyboard.release('tab')
-    keyboard.release('alt')
+    # time.sleep(1)
+    # keyboard.press('alt')
+    # keyboard.press('tab')
+    # keyboard.release('tab')
+    # keyboard.release('alt')
 
     time.sleep(1)
     paste_and_send_message_windows()
