@@ -1,3 +1,5 @@
+import random
+import numpy as np
 import pyautogui
 import requests
 import json
@@ -9,12 +11,14 @@ import time
 import datetime
 import platform
 from wechat_utils import activate_wechat_and_send_message
-
+from paddleocr import PaddleOCR, draw_ocr
+import cv2
 # Your other code here
 
 # # Call the function to activate WeChat and send a message
 # message = "Hello, WeChat!"
 # activate_wechat_and_send_message(message)
+
 
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
@@ -27,15 +31,18 @@ def levenshtein_distance(s1, s2):
             if c1 == c2:
                 new_distances.append(distances[i1])
             else:
-                new_distances.append(1 + min((distances[i1], distances[i1 + 1], new_distances[-1])))
+                new_distances.append(
+                    1 + min((distances[i1], distances[i1 + 1], new_distances[-1])))
         distances = new_distances
     return distances[-1]
+
 
 def similarity(s1, s2):
     distance = levenshtein_distance(s1, s2)
     max_len = max(len(s1), len(s2))
     similarity = (max_len - distance) / max_len
     return similarity
+
 
 string1 = "刘浩存 (应该是某次采访)"
 string2 = "刘浩存 (应该是某次采访"
@@ -48,39 +55,53 @@ string2 = "刘浩存 (应该是某次采访"
 def remove_number_prefix(text):
     return re.sub(r"^\d+、\s*", "", text)
 
+
 def get_completion(prompt, model="gpt-3.5-turbo"):
     messages = [{"role": "user", "content": prompt}]
     response = openai.ChatCompletion.create(
         model=model,
         messages=messages,
-        temperature=0, # this is the degree of randomness of the model's output
+        temperature=0,  # this is the degree of randomness of the model's output
     )
     return response.choices[0].message["content"]
 
 # 定义一个函数，检查文本中是否包含关键词列表中的任何一个关键词
+
+
 def contains_keyword(text, keywords):
     return any(keyword in text for keyword in keywords)
 
+# 从 config.json 文件中加载 prob 变量
+with open("state.json", "r") as f:
+    config = json.load(f)
+    prob = config["prob"]
+
+# 使用 prob 变量进行其他操作
+print("概率值为:", prob)
+    
+previous_content = None
+
 def autoreply():
+    global prob
+    global previous_content
     # 将鼠标移动到指定坐标
-    pyautogui.moveTo(200, 300)
+    # pyautogui.moveTo(200, 300)
 
     # # 在当前位置执行鼠标单击
-    pyautogui.click()
+    # pyautogui.click()
 
     with open("config.json", "rb") as config_file:
         config = json.loads(config_file.read())
 
-    openai.api_key  = config["open_ai_api_key"]
+    openai.api_key = config["open_ai_api_key"]
 
     time.sleep(1)
     # 截取屏幕截图
-    screenshot = pyautogui.screenshot()
+    # screenshot = pyautogui.screenshot()
 
     file_path = "screenshot.png"
     # # 将屏幕截图保存为文件
-    screenshot.save(file_path)
-
+    # screenshot.save(file_path)
 
     url = "http://192.168.10.8:8089/api/tr-run/"
 
@@ -90,42 +111,63 @@ def autoreply():
     with open(screenshot_path, "rb") as image_file:
         image_data = image_file.read()
 
-    multipart_data = {
-        "file": (screenshot_path, image_data, "image/png"),
-        "compress": (None, "960"),
-    }
 
-    response = requests.post(url, files=multipart_data, verify=False)
+    ocr = PaddleOCR(lang='ch', ocr_version='PP-OCRv2', show_log=False) # need to run only once to download and load model into memory
 
+    result = ocr.ocr(screenshot_path, cls=True)
+    # print(result)
+    response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
+    # image = cv2.imread(screenshot_path)
+    # # Draw boxes on the image
+    # for box in response_dict:
+    #     coordinates = box[0]
+    #     pts = np.array(coordinates, np.int32)
+    #     pts = pts.reshape((-1, 1, 2))
+    #     cv2.polylines(image, [pts], True, (0, 255, 0), 2)
 
-    # print(response.text)
+    # # Save the image with boxes
+    # output_image_path = "output_image.jpg"
+    # cv2.imwrite(output_image_path, image)
 
-    text = response.text
+    # # Display the image (optional)
+    # cv2.imshow("Image with Boxes", image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    # exit()
+    # exit()
+    # multipart_data = {
+    #     "file": (screenshot_path, image_data, "image/png"),
+    #     "compress": (None, "960"),
+    # }
 
-    # 将 JSON 字符串解析为 Python 字典
-    response_dict = json.loads(text)
+    # response = requests.post(url, files=multipart_data, verify=False)
 
-    # 从字典中删除 img_detected 字段
-    if "data" in response_dict and "img_detected" in response_dict["data"]:
-        del response_dict["data"]["img_detected"]
+    # # print(response.text)
+
+    # text = response.text
+
+    # # 将 JSON 字符串解析为 Python 字典
+    # response_dict = json.loads(text)
+
+    # # 从字典中删除 img_detected 字段
+    # if "data" in response_dict and "img_detected" in response_dict["data"]:
+    #     del response_dict["data"]["img_detected"]
 
     # 将修改后的字典转换回 JSON 字符串
-    new_response_string = json.dumps(response_dict, ensure_ascii=False)
+    # new_response_string = json.dumps(response_dict, ensure_ascii=False)
 
     # print(new_response_string)
 
     with open('result.json', 'w') as f:
-        f.write(new_response_string)
+        f.write(json.dumps(response_dict))
 
     # 将 JSON 字符串解析为 Python 字典
-    response_dict = json.loads(new_response_string)
+    # response_dict = json.loads(new_response_string)
 
-    data = response_dict["data"]["raw_out"]
-
+    data = response_dict
 
     # 提取x和y坐标
     x_coords = [item[0][point_idx][0] for item in data for point_idx in [0, 3]]
-
 
     # 初始化sorted_x
     sorted_x = []
@@ -146,10 +188,10 @@ def autoreply():
     sorted_x = sorted(sorted_x, key=lambda x: x[1], reverse=True)
 
     # 输出结果
-    # print("按出现次数从多到少排序的x坐标：")
-    # for x, count in sorted_x:
-    #     print(f"x坐标 {x} 出现了 {count} 次")
-
+    print("按出现次数从多到少排序的x坐标：")
+    for x, count in sorted_x:
+        print(f"x坐标 {x} 出现了 {count} 次")
+    exit()
 
     # print("\n按出现次数从多到少排序的y坐标：")
     # for y, count in sorted_y:
@@ -182,7 +224,7 @@ def autoreply():
         if abs(ltpoint[0] - max_x_coord) <= 5:
             isMsg = True
         elif abs(ltpoint[0] - second_largest_x) <= 5:
-            isName = True 
+            isName = True
         # print(item)
         # print(isMsg, isName)
         if isMsg:
@@ -203,7 +245,7 @@ def autoreply():
                 # print(item, merged_item)
                 merged_lbpoint = merged_item[0][3]
                 if abs(ltpoint[1] - merged_lbpoint[1]) <= 10 and item[3] == merged_item[3]:
-                    print("<= 5",item, merged_item)
+                    print("<= 5", item, merged_item)
                     merged_data[index][0][0] = merged_item[0][0]
                     merged_data[index][0][1] = merged_item[0][1]
                     merged_data[index][0][2] = item[0][2]
@@ -214,7 +256,6 @@ def autoreply():
                     merged = True
                     # exit()
                     break
-                
 
             if not merged:
                 merged_data.append(item)
@@ -233,11 +274,22 @@ def autoreply():
     print(merged_data)
 
     # 提取共有部分
-    fixed_name = group_name.replace(' ', '').split('(')[0]
-
+    fixed_name = group_name.replace(' ', '').split('(')[0].split('（')[0]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    file_name = f"{fixed_name}_{current_date}.json".replace('/', '_').replace('|', '_').replace('*s', '_')
+    # file_name = f"{fixed_name}_{current_date}.json".replace(
+    #     '/', '_').replace('|', '_').replace('*', '_').replace('?', '_').replace('$', '_').replace('＆', '_').replace('》', '_').replace('◆', '_')
+
+    # 移除所有非中文汉字和非英文字母
+    fixed_name = re.sub(r'[^\u4e00-\u9fa5a-zA-Z]', '', fixed_name)
+    for group_name in config['group_name_white_list']:
+        if group_name in fixed_name:
+            fixed_name = group_name
+            break
+
+    file_name = f"{fixed_name}_{current_date}.json"
+
+    print(file_name)
 
     file_path = "history/" + file_name
     # 检查文件是否存在
@@ -246,18 +298,33 @@ def autoreply():
         with open(file_path, 'w') as f:
             f.write("[]")
 
-    reverse_merged_data = sorted(merged_data, key=lambda item: item[0][0][1], reverse=True)
+    reverse_merged_data = sorted(
+        merged_data, key=lambda item: item[0][0][1], reverse=True)
+    
+    prob_changed = False
     with open(file_path, 'rb+') as f:
         old = json.loads(f.read())
-        for item in reverse_merged_data:
             
+        for item in reverse_merged_data:
+            if not prob_changed and item[3] == "msg":
+                print("item", item)
+                print("previous_content", previous_content)
+                if previous_content == item[1]:
+                    prob = min(prob * 1.1, 0.999)
+                else:
+                    prob = prob * 0.9
+                print("prob", prob)
+                previous_content = item[1]
+                prob_changed = True
             found = False
+
+            
             for old_item in old:
                 similarity_score = similarity(item[1], old_item[1])
                 if similarity_score >= 0.6:
                     found = True
                     break
-            
+
             if not found:
                 requested = False
                 if (contains_keyword(item[1], config["group_chat_keyword"]) and "@" not in item[1] and item[3] == "msg") or "@全" in item[1]:
@@ -267,29 +334,30 @@ def autoreply():
                         last_item = old[-1]
                         old = old[:-1]
                         name = last_item[1]
-                    history = '\n'.join((item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in old[-100:])
-                    
+                    history = '\n'.join(
+                        (item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in old[-100:])
+
                     prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，如果无法提供有效的回复，返回0，不然请用50字以内回答或建议: {item[1]}。\n"
                     print(prompt)
-                    
+
                     message = "Hello, this is a test message!"
                     if any(name in group_name for name in config["group_name_white_list"]):
-                        response = get_completion(prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
+                        response = get_completion(
+                            prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
                         print(response)
-                        if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
-                            activate_wechat_and_send_message(response)
+                        # if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
+                        #     activate_wechat_and_send_message(response)
                     else:
-                        response = get_completion(prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
+                        response = get_completion(
+                            prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
                         print(response)
                         # activate_wechat_and_send_message(response)
                     requested = True
-                    
 
-                
                 if requested:
-                    time.sleep(20)
+                    # time.sleep(20)
                     for item in merged_data:
-                        old.append(item)    
+                        old.append(item)
                     # print(old)
                     # 从文件开头开始写入
                     f.seek(0)
@@ -297,9 +365,15 @@ def autoreply():
                     f.truncate()  # 删除文件中任何剩余的内容
                     break
 
+
 while True:
-    autoreply()
-    time.sleep(10)
+    # 将 prob 变量保存到 config.json 文件中
+    with open("state.json", "w") as f:
+        json.dump({"prob": prob}, f)
+        
+    if random.random() > prob:
+        autoreply()
+    time.sleep(1)
 
 exit()
 
