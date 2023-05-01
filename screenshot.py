@@ -44,56 +44,6 @@ string2 = "刘浩存 (应该是某次采访"
 # print("The similarity score between the two strings is:", similarity_score)
 # exit()
 
-def escape_applescript_string(s):
-    return s.replace('"', '\\"').replace('\\', '\\\\')
-
-def escape_windows_string(s):
-    return s.replace('"', '\\"').replace("'", "\\'")
-
-def set_clipboard(text):
-    text = escape_applescript_string(text)
-    applescript = f'''
-    set the clipboard to "{text}"
-    '''
-    os.system(f"osascript -e '{applescript}'")
-
-def paste_and_send_message():
-    applescript = f'''
-    tell application "System Events"
-        keystroke "v" using command down
-        keystroke "return"
-    end tell
-    '''
-    os.system(f"osascript -e '{applescript}'")
-
-# def activate_wechat_and_send_message(message):
-#     message = escape_applescript_string(message)
-#     applescript = f'''
-#     set the clipboard to "{message}"
-#     tell application "System Events"
-#         set is_running to (count (every process whose bundle identifier is "com.tencent.xinWeChat")) > 0
-#     end tell
-
-#     if is_running then
-#         tell application "WeChat"
-#             activate
-#             delay 1
-#             tell application "System Events"
-#                 keystroke "v" using command down
-#                 key code 36
-#             end tell
-#         end tell
-#     else
-#         display alert "WeChat is not running."
-#     end if
-#     '''
-
-#     os.system(f"osascript -e '{applescript}'")
-
-# message = "你好，这是一个测试消息！"
-# activate_wechat_and_send_message(message)
-
-# exit()
 
 def remove_number_prefix(text):
     return re.sub(r"^\d+、\s*", "", text)
@@ -115,7 +65,7 @@ def autoreply():
     # 将鼠标移动到指定坐标
     pyautogui.moveTo(200, 300)
 
-    # 在当前位置执行鼠标单击
+    # # 在当前位置执行鼠标单击
     pyautogui.click()
 
     with open("config.json", "rb") as config_file:
@@ -287,7 +237,7 @@ def autoreply():
 
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    file_name = f"{fixed_name}_{current_date}.json".replace('/', '_').replace('|', '_')
+    file_name = f"{fixed_name}_{current_date}.json".replace('/', '_').replace('|', '_').replace('*s', '_')
 
     file_path = "history/" + file_name
     # 检查文件是否存在
