@@ -85,10 +85,10 @@ def autoreply():
     global prob
     global previous_content
     # 将鼠标移动到指定坐标
-    # pyautogui.moveTo(200, 300)
+    pyautogui.moveTo(200, 300)
 
     # # 在当前位置执行鼠标单击
-    # pyautogui.click()
+    pyautogui.click()
 
     with open("config.json", "rb") as config_file:
         config = json.loads(config_file.read())
@@ -97,13 +97,11 @@ def autoreply():
 
     time.sleep(1)
     # 截取屏幕截图
-    # screenshot = pyautogui.screenshot()
+    screenshot = pyautogui.screenshot()
 
     file_path = "screenshot.png"
     # # 将屏幕截图保存为文件
-    # screenshot.save(file_path)
-
-    url = "http://192.168.10.8:8089/api/tr-run/"
+    screenshot.save(file_path)
 
     # 替换此路径为您的截图文件路径
     screenshot_path = file_path
@@ -134,30 +132,6 @@ def autoreply():
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
     # exit()
-    # exit()
-    # multipart_data = {
-    #     "file": (screenshot_path, image_data, "image/png"),
-    #     "compress": (None, "960"),
-    # }
-
-    # response = requests.post(url, files=multipart_data, verify=False)
-
-    # # print(response.text)
-
-    # text = response.text
-
-    # # 将 JSON 字符串解析为 Python 字典
-    # response_dict = json.loads(text)
-
-    # # 从字典中删除 img_detected 字段
-    # if "data" in response_dict and "img_detected" in response_dict["data"]:
-    #     del response_dict["data"]["img_detected"]
-
-    # 将修改后的字典转换回 JSON 字符串
-    # new_response_string = json.dumps(response_dict, ensure_ascii=False)
-
-    # print(new_response_string)
-
     with open('result.json', 'w') as f:
         f.write(json.dumps(response_dict))
 
@@ -188,10 +162,9 @@ def autoreply():
     sorted_x = sorted(sorted_x, key=lambda x: x[1], reverse=True)
 
     # 输出结果
-    print("按出现次数从多到少排序的x坐标：")
-    for x, count in sorted_x:
-        print(f"x坐标 {x} 出现了 {count} 次")
-    exit()
+    # print("按出现次数从多到少排序的x坐标：")
+    # for x, count in sorted_x:
+    #     print(f"x坐标 {x} 出现了 {count} 次")
 
     # print("\n按出现次数从多到少排序的y坐标：")
     # for y, count in sorted_y:
@@ -221,10 +194,10 @@ def autoreply():
         ltpoint = item[0][0]
         isMsg = False
         isName = False
-        if abs(ltpoint[0] - max_x_coord) <= 5:
+        if ltpoint[0] - max_x_coord <= 10 and ltpoint[0] - max_x_coord > -5:
             isMsg = True
-        elif abs(ltpoint[0] - second_largest_x) <= 5:
-            isName = True
+        # elif abs(ltpoint[0] - second_largest_x) <= 5:
+        #     isName = True
         # print(item)
         # print(isMsg, isName)
         if isMsg:
@@ -234,10 +207,7 @@ def autoreply():
         else:
             type = "other"
         item.append(type)
-        # if len(merged_data[index]) >= 4:
-        #     merged_data[index][3] = type
-        # else:
-        #     merged_data[index].append(type)
+
         if isMsg or isName:
             # print(point)
             merged = False
@@ -247,8 +217,10 @@ def autoreply():
                 if abs(ltpoint[1] - merged_lbpoint[1]) <= 10 and item[3] == merged_item[3]:
                     print("<= 5", item, merged_item)
                     merged_data[index][0][0] = merged_item[0][0]
-                    merged_data[index][0][1] = merged_item[0][1]
-                    merged_data[index][0][2] = item[0][2]
+                    merged_data[index][0][1][1] = merged_item[0][1][1]
+                    merged_data[index][0][1][0] = max(merged_item[0][1][0], item[0][1][0])
+                    merged_data[index][0][2][1] = item[0][2][1]
+                    merged_data[index][0][2][0] = max(merged_item[0][2][0], item[0][2][0])
                     merged_data[index][0][3] = item[0][3]
                     merged_data[index][1] = merged_item[1] + item[1]
                     merged_data[index][2] = (merged_item[2] + item[2]) / 2
@@ -277,14 +249,14 @@ def autoreply():
     fixed_name = group_name.replace(' ', '').split('(')[0].split('（')[0]
 
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    # file_name = f"{fixed_name}_{current_date}.json".replace(
+    # file_name = f"{fixed_name}".replace(
     #     '/', '_').replace('|', '_').replace('*', '_').replace('?', '_').replace('$', '_').replace('＆', '_').replace('》', '_').replace('◆', '_')
 
     # 移除所有非中文汉字和非英文字母
     fixed_name = re.sub(r'[^\u4e00-\u9fa5a-zA-Z]', '', fixed_name)
-    for group_name in config['group_name_white_list']:
-        if group_name in fixed_name:
-            fixed_name = group_name
+    for group in config['group_name_white_list']:
+        if group in fixed_name:
+            fixed_name = group
             break
 
     file_name = f"{fixed_name}_{current_date}.json"
@@ -304,7 +276,8 @@ def autoreply():
     prob_changed = False
     with open(file_path, 'rb+') as f:
         old = json.loads(f.read())
-            
+        filtered_reverse_merged_data = []
+        found = False
         for item in reverse_merged_data:
             if not prob_changed and item[3] == "msg":
                 print("item", item)
@@ -316,54 +289,66 @@ def autoreply():
                 print("prob", prob)
                 previous_content = item[1]
                 prob_changed = True
-            found = False
-
-            
+                
             for old_item in old:
                 similarity_score = similarity(item[1], old_item[1])
                 if similarity_score >= 0.6:
                     found = True
                     break
-
             if not found:
-                requested = False
-                if (contains_keyword(item[1], config["group_chat_keyword"]) and "@" not in item[1] and item[3] == "msg") or "@全" in item[1]:
-                    history = ""
-                    name = ""
-                    if len(old) > 0:
-                        last_item = old[-1]
-                        old = old[:-1]
-                        name = last_item[1]
-                    history = '\n'.join(
-                        (item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in old[-100:])
+                filtered_reverse_merged_data.append(item)
+                
+        filtered_merged_data = sorted(filtered_reverse_merged_data, key=lambda item: item[0][0][1])
+        requested = False
+        for index, item in enumerate(filtered_reverse_merged_data):
 
-                    prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，如果无法提供有效的回复，返回0，不然请用50字以内回答或建议: {item[1]}。\n"
-                    print(prompt)
+            if not requested and (contains_keyword(item[1], config["group_chat_keyword"]) and "@" not in item[1] and item[3] == "msg") or "@全" in item[1]:
+                before = old + filtered_merged_data[:-index-1]
+                history = ""
+                name = ""
+                if len(before) > 0:
+                    last_item = before[-1]
+                    before = before[:-1]
+                    name = last_item[1]
+                history = '\n'.join(
+                    (item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in before[-100:])
 
-                    message = "Hello, this is a test message!"
-                    if any(name in group_name for name in config["group_name_white_list"]):
-                        response = get_completion(
-                            prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
-                        print(response)
-                        # if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
-                        #     activate_wechat_and_send_message(response)
-                    else:
-                        response = get_completion(
-                            prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
-                        print(response)
-                        # activate_wechat_and_send_message(response)
-                    requested = True
+                prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，如果无法提供有效的回复，返回0，不然请用50字以内回答或建议: {item[1]}。\n"
+                print(prompt)
 
-                if requested:
-                    # time.sleep(20)
-                    for item in merged_data:
-                        old.append(item)
-                    # print(old)
-                    # 从文件开头开始写入
-                    f.seek(0)
-                    f.write(json.dumps(old).encode('utf-8'))
-                    f.truncate()  # 删除文件中任何剩余的内容
-                    break
+                message = "Hello, this is a test message!"
+                if any(name in group_name for name in config["group_name_white_list"]):
+                    response = get_completion(
+                        prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
+                    print(response)
+                    # if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
+                    #     activate_wechat_and_send_message(response)
+                else:
+                    response = get_completion(
+                        prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
+                    print(response)
+                    # activate_wechat_and_send_message(response)
+                requested = True
+
+            # if item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30:
+            #     pyautogui.click(item[0][0][0] + 10, item[0][0][1] + 10)
+            #     time.sleep(0.5)
+            #     screenshot = pyautogui.screenshot()
+            #     screenshot.save(file_path)
+            #     result = ocr.ocr(screenshot_path, cls=True)
+            #     # print(result)
+            #     response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
+            #     for item in response_dict:
+            #     time.sleep(20)
+        if requested:
+            # time.sleep(20)
+            for item in filtered_merged_data:
+                before.append(item)
+            # print(old)
+            # 从文件开头开始写入
+            f.seek(0)
+            f.write(json.dumps(old).encode('utf-8'))
+            f.truncate()  # 删除文件中任何剩余的内容
 
 
 while True:
