@@ -13,12 +13,30 @@ import platform
 from wechat_utils import activate_wechat_and_send_message
 from paddleocr import PaddleOCR, draw_ocr
 import cv2
-# Your other code here
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
-# # Call the function to activate WeChat and send a message
-# message = "Hello, WeChat!"
-# activate_wechat_and_send_message(message)
+def screenshot_webpage(url, save_path='screenshot.png'):
+    # Configure browser options
+    chrome_options = Options()
+    chrome_options.headless = True
 
+    # Initialize the browser
+    browser = webdriver.Chrome(options=chrome_options)
+
+    # Open the webpage
+    browser.get(url)
+
+    # Take a screenshot and save it to a file
+    browser.save_screenshot(save_path)
+
+    # Close the browser
+    browser.quit()
+    
+def extract_links(text):
+    url_pattern = re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+    urls = re.findall(url_pattern, text)
+    return urls
 
 def levenshtein_distance(s1, s2):
     if len(s1) < len(s2):
@@ -110,24 +128,24 @@ def autoreply():
         image_data = image_file.read()
 
 
-    ocr = PaddleOCR(lang='ch', ocr_version='PP-OCRv2', show_log=False) # need to run only once to download and load model into memory
+    ocr = PaddleOCR(lang='ch', ocr_version='PP-OCRv3', show_log=False) # need to run only once to download and load model into memory
 
-    result = ocr.ocr(screenshot_path, cls=True)
+    result = ocr.ocr(screenshot_path)
     # print(result)
     response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
-    # image = cv2.imread(screenshot_path)
-    # # Draw boxes on the image
-    # for box in response_dict:
-    #     coordinates = box[0]
-    #     pts = np.array(coordinates, np.int32)
-    #     pts = pts.reshape((-1, 1, 2))
-    #     cv2.polylines(image, [pts], True, (0, 255, 0), 2)
+    image = cv2.imread(screenshot_path)
+    # Draw boxes on the image
+    for box in response_dict:
+        coordinates = box[0]
+        pts = np.array(coordinates, np.int32)
+        pts = pts.reshape((-1, 1, 2))
+        cv2.polylines(image, [pts], True, (0, 255, 0), 2)
 
-    # # Save the image with boxes
-    # output_image_path = "output_image.jpg"
-    # cv2.imwrite(output_image_path, image)
+    # Save the image with boxes
+    output_image_path = "output_image.jpg"
+    cv2.imwrite(output_image_path, image)
 
-    # # Display the image (optional)
+    # Display the image (optional)
     # cv2.imshow("Image with Boxes", image)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
@@ -162,16 +180,16 @@ def autoreply():
     sorted_x = sorted(sorted_x, key=lambda x: x[1], reverse=True)
 
     # 输出结果
-    # print("按出现次数从多到少排序的x坐标：")
-    # for x, count in sorted_x:
-    #     print(f"x坐标 {x} 出现了 {count} 次")
+    print("按出现次数从多到少排序的x坐标：")
+    for x, count in sorted_x:
+        print(f"x坐标 {x} 出现了 {count} 次")
 
     # print("\n按出现次数从多到少排序的y坐标：")
     # for y, count in sorted_y:
     #     print(f"y坐标 {y} 出现了 {count} 次")
 
     # 提取前4个元素的x坐标值
-    first_four_x_coords = [item[0] for item in sorted_x[:6]]
+    first_four_x_coords = [item[0] for item in sorted_x[:7]]
 
     # 找出前4个元素中的最大x坐标值，但不选择超过500的坐标值
     max_x_coord = max(x for x in first_four_x_coords if x <= 500)
@@ -196,8 +214,8 @@ def autoreply():
         isName = False
         if ltpoint[0] - max_x_coord <= 10 and ltpoint[0] - max_x_coord > -5:
             isMsg = True
-        # elif abs(ltpoint[0] - second_largest_x) <= 5:
-        #     isName = True
+        elif abs(ltpoint[0] - second_largest_x) <= 5:
+            isName = True
         # print(item)
         # print(isMsg, isName)
         if isMsg:
@@ -323,27 +341,46 @@ def autoreply():
                     print(response)
                     # if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
                     #     activate_wechat_and_send_message(response)
+                    # Send a text message
+                        # activate_wechat_and_send_message(message=response)
                 else:
                     response = get_completion(
                         prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
                     print(response)
                     # activate_wechat_and_send_message(response)
                 requested = True
-
-            # if item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30:
-            #     pyautogui.click(item[0][0][0] + 10, item[0][0][1] + 10)
-            #     time.sleep(0.5)
-            #     screenshot = pyautogui.screenshot()
-            #     screenshot.save(file_path)
-            #     result = ocr.ocr(screenshot_path, cls=True)
-            #     # print(result)
-            #     response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
-            #     for item in response_dict:
-            #     time.sleep(20)
+            
+            if not requested:
+                links = extract_links(item[1])
+                print(links)
+                if len(links) > 0:
+                    screenshot_webpage(links[0], 'example_screenshot.png')
+                    
+                    # if any(name in group_name for name in config["group_name_white_list"]):
+                    #     # Send a screenshot
+                    #     activate_wechat_and_send_message(screenshot=screenshot)
+                    requested = True
+                
+            if any(name in group_name for name in config["group_name_white_list"]) and not requested and item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30:
+                pyautogui.click(item[0][0][0] + 10, item[0][0][1] + 10)
+                time.sleep(0.5)
+                screenshot = pyautogui.screenshot()
+                screenshot.save('example_screenshot.png')
+                time.sleep(0.5)
+                
+                if any(name in group_name for name in config["group_name_white_list"]):
+                    # Send a screenshot
+                    activate_wechat_and_send_message(screenshot=screenshot)
+                # result = ocr.ocr(screenshot_path, cls=True)
+                # # print(result)
+                # response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
+                # for item in response_dict:
+                # time.sleep(20)
+                requested = True
         if requested:
             # time.sleep(20)
             for item in filtered_merged_data:
-                before.append(item)
+                old.append(item)
             # print(old)
             # 从文件开头开始写入
             f.seek(0)
