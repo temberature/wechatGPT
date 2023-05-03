@@ -1,4 +1,8 @@
+# -*- coding: utf-8 -*-
+
+import io
 import random
+import sys
 import numpy as np
 import pyautogui
 import requests
@@ -15,6 +19,41 @@ from paddleocr import PaddleOCR, draw_ocr
 import cv2
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+import requests
+from bs4 import BeautifulSoup
+from readability import Document
+import html2markdown
+import html2text
+# Change the standard output encoding to UTF-8
+# sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf8', errors='ignore')
+
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
+
+def get_webpage_content(url):
+    # Configure browser options
+    chrome_options = Options()
+    chrome_options.headless = True
+
+    # Initialize the browser
+    browser = webdriver.Chrome(options=chrome_options)
+
+    # Open the webpage
+    browser.get(url)
+
+    # Wait for the webpage to fully render
+    time.sleep(5)
+
+    # Get the rendered HTML content
+    rendered_html = browser.page_source
+
+    # Close the WebDriver instance
+    browser.quit()
+
+    # Return the rendered HTML content
+    return rendered_html
 
 def screenshot_webpage(url, save_path='screenshot.png'):
     # Configure browser options
@@ -355,28 +394,55 @@ def autoreply():
                 print(links)
                 if len(links) > 0:
                     screenshot_webpage(links[0], 'example_screenshot.png')
-                    
+                    with open('example_screenshot.png', "rb") as image_file:
+                        image_data = image_file.read()
                     # if any(name in group_name for name in config["group_name_white_list"]):
                     #     # Send a screenshot
-                    #     activate_wechat_and_send_message(screenshot=screenshot)
+                        activate_wechat_and_send_message(screenshot=image_data)
                     requested = True
                 
-            if any(name in group_name for name in config["group_name_white_list"]) and not requested and item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30:
+            if not requested and item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30:
                 pyautogui.click(item[0][0][0] + 10, item[0][0][1] + 10)
-                time.sleep(0.5)
+                time.sleep(5)
                 screenshot = pyautogui.screenshot()
                 screenshot.save('example_screenshot.png')
                 time.sleep(0.5)
-                
-                if any(name in group_name for name in config["group_name_white_list"]):
-                    # Send a screenshot
-                    activate_wechat_and_send_message(screenshot=screenshot)
-                # result = ocr.ocr(screenshot_path, cls=True)
-                # # print(result)
-                # response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
-                # for item in response_dict:
+                result = ocr.ocr('example_screenshot.png')
+                print(result)
+                response_dict = [[entry[0], entry[1][0], entry[1][1]] for entry in result[0]]
+
+                for item in response_dict:
+                    if item[0][0][0] > 150:
+                        continue
+                    links = extract_links(item[1].replace(' ', ''))
+                    if len(links) > 0:
+                        
+                        webpage_content = get_webpage_content(links[0])
+
+                        if webpage_content:
+                            doc = Document(webpage_content)
+                            main_content = doc.summary()
+                            markdown_content = html2text.html2text(main_content)
+                            # Extract the first and last 900 characters and concatenate them
+                            markdown_excerpt = markdown_content[:900] + markdown_content[-900:]
+                            # print(markdown_content)
+                            response = get_completion(markdown_excerpt + "总结一下上述内容：", "gpt-3.5-turbo")
+                            print(response) + "\n(人工智能生成)"
+                            if True:
+                                # Send a screenshot
+                                activate_wechat_and_send_message(message=response)
+                            # Save markdown content to a file
+                            with open("output.md", "w", encoding='utf-8') as markdown_file:
+                                markdown_file.write(markdown_content)
+                            requested = True
+                            break
+                            
+                            
+                            
+
+                        
                 # time.sleep(20)
-                requested = True
+                # requested = True
         if requested:
             # time.sleep(20)
             for item in filtered_merged_data:

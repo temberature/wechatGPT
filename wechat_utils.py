@@ -91,14 +91,14 @@ def activate_wechat_and_send_message_windows(message=None, screenshot=None):
         set_image_to_clipboard_windows(screenshot)
 
     # Activate WeChat
-    wechat_window_title = "WeChat"  # Replace with the actual WeChat window title
-    pyautogui.getWindowsWithTitle(wechat_window_title)[0].activate()
+    # wechat_window_title = "WeChat"  # Replace with the actual WeChat window title
+    # pyautogui.getWindowsWithTitle(wechat_window_title)[0].activate()
     # You might need to adjust the sleep duration and hotkey to switch to WeChat
-    # time.sleep(1)
-    # keyboard.press('alt')
-    # keyboard.press('tab')
-    # keyboard.release('tab')
-    # keyboard.release('alt')
+    time.sleep(1)
+    keyboard.press('alt')
+    keyboard.press('tab')
+    keyboard.release('tab')
+    keyboard.release('alt')
 
     time.sleep(1)
     paste_and_send_message_windows()
