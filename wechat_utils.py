@@ -9,7 +9,7 @@ import keyboard
 from PIL import ImageGrab
 import win32clipboard
 import win32con
-
+import subprocess
 # macOS functions
 def escape_applescript_string(s):
     return s.replace('"', '\\"').replace("'", "\\'")
@@ -95,10 +95,13 @@ def activate_wechat_and_send_message_windows(message=None, screenshot=None):
     # pyautogui.getWindowsWithTitle(wechat_window_title)[0].activate()
     # You might need to adjust the sleep duration and hotkey to switch to WeChat
     time.sleep(1)
-    keyboard.press('alt')
-    keyboard.press('tab')
-    keyboard.release('tab')
-    keyboard.release('alt')
+
+
+    # 路径需要替换成你实际的AutoHotkey.exe所在路径
+    autohotkey_path = "C:\\Program Files\\AutoHotkey\\AutoHotkey.exe"
+    script_path = "activate_wechat.ahk"
+
+    subprocess.run([autohotkey_path, script_path])
 
     time.sleep(1)
     paste_and_send_message_windows()

@@ -30,6 +30,8 @@ import html2text
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from state_manager import update_first_x_coords, update_prob, get_most_common_coords
+
 
 
 def get_webpage_content(url):
@@ -55,6 +57,18 @@ def get_webpage_content(url):
     # Return the rendered HTML content
     return rendered_html
 
+def get_markdown(url):
+    webpage_content = get_webpage_content(url)
+
+    if webpage_content:
+        doc = Document(webpage_content)
+        main_content = doc.summary()
+        markdown_content = html2text.html2text(main_content)
+        
+        with open("output.md", "w", encoding='utf-8') as markdown_file:
+            markdown_file.write(markdown_content)
+        return markdown_content
+            
 def screenshot_webpage(url, save_path='screenshot.png'):
     # Configure browser options
     chrome_options = Options()
@@ -198,7 +212,7 @@ def autoreply():
     data = response_dict
 
     # 提取x和y坐标
-    x_coords = [item[0][point_idx][0] for item in data for point_idx in [0, 3]]
+    x_coords = [item[0][point_idx][0] for item in data if item[2] > 0.6 for point_idx in [0, 3]]
 
     # 初始化sorted_x
     sorted_x = []
@@ -219,27 +233,25 @@ def autoreply():
     sorted_x = sorted(sorted_x, key=lambda x: x[1], reverse=True)
 
     # 输出结果
-    print("按出现次数从多到少排序的x坐标：")
-    for x, count in sorted_x:
-        print(f"x坐标 {x} 出现了 {count} 次")
+    # print("按出现次数从多到少排序的x坐标：")
+    # for x, count in sorted_x:
+    #     print(f"x坐标 {x} 出现了 {count} 次")
 
     # print("\n按出现次数从多到少排序的y坐标：")
     # for y, count in sorted_y:
     #     print(f"y坐标 {y} 出现了 {count} 次")
 
-    # 提取前4个元素的x坐标值
-    first_four_x_coords = [item[0] for item in sorted_x[:7]]
-
-    # 找出前4个元素中的最大x坐标值，但不选择超过500的坐标值
-    max_x_coord = max(x for x in first_four_x_coords if x <= 500)
-
-    filtered_x_coords = [x for x in first_four_x_coords if x <= 500]
-    filtered_x_coords.sort(reverse=True)
-
-    if len(filtered_x_coords) >= 2:
-        second_largest_x = filtered_x_coords[1]
-    else:
-        second_largest_x = None
+ 
+    first_x_coords = [item[0] for item in sorted_x if item[1] >= 8]
+    first_x_coords.sort()
+    # print(first_x_coords)
+    
+    most_common_coords = get_most_common_coords()
+    print(most_common_coords)
+    if len(most_common_coords) < 1:
+        most_common_coords = first_x_coords
+    max_x_coord = most_common_coords[3]
+    second_largest_x = most_common_coords[2]
 
     print("大x坐标值：", max_x_coord, "第二大x坐标值：", second_largest_x)
 
@@ -336,13 +348,16 @@ def autoreply():
         filtered_reverse_merged_data = []
         found = False
         for item in reverse_merged_data:
-            if not prob_changed and item[3] == "msg":
+            if not prob_changed and item[1] != '':
                 print("item", item)
                 print("previous_content", previous_content)
                 if previous_content == item[1]:
                     prob = min(prob * 1.1, 0.999)
                 else:
                     prob = prob * 0.9
+                    # Update the state with the new data
+                    update_first_x_coords(first_x_coords)
+                update_prob(prob)
                 print("prob", prob)
                 previous_content = item[1]
                 prob_changed = True
@@ -370,7 +385,7 @@ def autoreply():
                 history = '\n'.join(
                     (item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in before[-100:])
 
-                prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，如果无法提供有效的回复，返回0，不然请用50字以内回答或建议: {item[1]}。\n"
+                prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，假设你是微信群的成员，请采用非正式文风，用50字以内回答或建议: {item[1]}？\n"
                 print(prompt)
 
                 message = "Hello, this is a test message!"
@@ -379,9 +394,8 @@ def autoreply():
                         prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
                     print(response)
                     # if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
-                    #     activate_wechat_and_send_message(response)
-                    # Send a text message
-                        # activate_wechat_and_send_message(message=response)
+                    # # # Send a text message
+                    #     activate_wechat_and_send_message(message=response)
                 else:
                     response = get_completion(
                         prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
@@ -389,19 +403,14 @@ def autoreply():
                     # activate_wechat_and_send_message(response)
                 requested = True
             
+            url = ""
             if not requested:
                 links = extract_links(item[1])
                 print(links)
                 if len(links) > 0:
-                    screenshot_webpage(links[0], 'example_screenshot.png')
-                    with open('example_screenshot.png', "rb") as image_file:
-                        image_data = image_file.read()
-                    # if any(name in group_name for name in config["group_name_white_list"]):
-                    #     # Send a screenshot
-                        activate_wechat_and_send_message(screenshot=image_data)
-                    requested = True
+                    url = links[0]
                 
-            if not requested and item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30:
+            if not requested and item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30 and item[0][0][0] > 400 and item[0][0][0] < 500 and any(name in group_name for name in config["group_name_white_list"]):
                 pyautogui.click(item[0][0][0] + 10, item[0][0][1] + 10)
                 time.sleep(5)
                 screenshot = pyautogui.screenshot()
@@ -416,30 +425,20 @@ def autoreply():
                         continue
                     links = extract_links(item[1].replace(' ', ''))
                     if len(links) > 0:
-                        
-                        webpage_content = get_webpage_content(links[0])
+                        url = links[0]
 
-                        if webpage_content:
-                            doc = Document(webpage_content)
-                            main_content = doc.summary()
-                            markdown_content = html2text.html2text(main_content)
-                            # Extract the first and last 900 characters and concatenate them
-                            markdown_excerpt = markdown_content[:900] + markdown_content[-900:]
-                            # print(markdown_content)
-                            response = get_completion(markdown_excerpt + "总结一下上述内容：", "gpt-3.5-turbo")
-                            print(response) + "\n(人工智能生成)"
-                            if True:
-                                # Send a screenshot
-                                activate_wechat_and_send_message(message=response)
-                            # Save markdown content to a file
-                            with open("output.md", "w", encoding='utf-8') as markdown_file:
-                                markdown_file.write(markdown_content)
-                            requested = True
-                            break
-                            
-                            
-                            
-
+            
+            if url:
+                markdown_content = get_markdown(url)
+                # Extract the first and last 900 characters and concatenate them
+                markdown_excerpt = markdown_content[:900] + markdown_content[-900:]
+                # print(markdown_content)
+                response = get_completion(markdown_excerpt + "总结一下上述内容：", "gpt-3.5-turbo") + "\n(人工智能生成)"
+                print(response)
+                if any(name in group_name for name in config["group_name_white_list"]):
+                    # Send a screenshot
+                    activate_wechat_and_send_message(message=response)
+                requested = True
                         
                 # time.sleep(20)
                 # requested = True
@@ -455,13 +454,10 @@ def autoreply():
 
 
 while True:
-    # 将 prob 变量保存到 config.json 文件中
-    with open("state.json", "w") as f:
-        json.dump({"prob": prob}, f)
-        
+    print(prob)
     if random.random() > prob:
         autoreply()
-    time.sleep(1)
+    time.sleep(5)
 
 exit()
 
