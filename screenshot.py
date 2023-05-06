@@ -25,15 +25,37 @@ from readability import Document
 import html2markdown
 import html2text
 # Change the standard output encoding to UTF-8
-# sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf8', errors='ignore')
+# sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from state_manager import update_first_x_coords, update_prob, get_most_common_coords
+from state_manager import load_state, update_first_x_coords, update_prob, get_most_common_coords
 
+with open("config.json", "rb") as config_file:
+    config = json.loads(config_file.read())
 
+     
+def clickGroup(data):
+    for item in data:
+        for name in config["group_name_white_list"]:
+            fixed_name = re.sub(r'[^\u4e00-\u9fa5a-zA-Z]', '', item[1])
+            # print(fixed_name, name)
+            if name[3:6] in fixed_name and item[3] == "group" and "条" in fixed_name:
+                print(item)
+                # 将鼠标移动到指定坐标
+                pyautogui.moveTo(item[0][0][0] + 10, item[0][0][1] + 10)
 
+                # # 在当前位置执行鼠标单击
+                pyautogui.click()
+                return True
+    # 将鼠标移动到指定坐标
+    pyautogui.moveTo(200, 300)
+
+    # # 在当前位置执行鼠标单击
+    pyautogui.click()
+    return False
+    
 def get_webpage_content(url):
     # Configure browser options
     chrome_options = Options()
@@ -143,26 +165,20 @@ def contains_keyword(text, keywords):
     return any(keyword in text for keyword in keywords)
 
 # 从 config.json 文件中加载 prob 变量
-with open("state.json", "r") as f:
-    config = json.load(f)
-    prob = config["prob"]
+# with open("state.json", "r") as f:
+#     config = json.load(f)
+#     prob = config["prob"]
 
+prob = load_state()["prob"]
 # 使用 prob 变量进行其他操作
 print("概率值为:", prob)
     
 previous_content = None
 
 def autoreply():
-    global prob
     global previous_content
-    # 将鼠标移动到指定坐标
-    pyautogui.moveTo(200, 300)
+    global prob
 
-    # # 在当前位置执行鼠标单击
-    pyautogui.click()
-
-    with open("config.json", "rb") as config_file:
-        config = json.loads(config_file.read())
 
     openai.api_key = config["open_ai_api_key"]
 
@@ -242,7 +258,7 @@ def autoreply():
     #     print(f"y坐标 {y} 出现了 {count} 次")
 
  
-    first_x_coords = [item[0] for item in sorted_x if item[1] >= 8]
+    first_x_coords = [item[0] for item in sorted_x if item[1] >= 10]
     first_x_coords.sort()
     # print(first_x_coords)
     
@@ -250,34 +266,37 @@ def autoreply():
     print(most_common_coords)
     if len(most_common_coords) < 1:
         most_common_coords = first_x_coords
-    max_x_coord = most_common_coords[3]
-    second_largest_x = most_common_coords[2]
-
-    print("大x坐标值：", max_x_coord, "第二大x坐标值：", second_largest_x)
+    msg_x_coord = most_common_coords[2]
+    name_x_coord = most_common_coords[2] - 10
+    group_x_coord = most_common_coords[0]
+    
+    print("大x坐标值：", msg_x_coord, "第二大x坐标值：", name_x_coord)
 
     group_name = ""
     merged_data = []
     data = sorted(data, key=lambda item: item[0][0][1])
 
-    def merge(item, merged_data, max_x_coord, second_largest_x):
+    def merge(item, merged_data, msg_x_coord, name_x_coord):
         ltpoint = item[0][0]
         isMsg = False
         isName = False
-        if ltpoint[0] - max_x_coord <= 10 and ltpoint[0] - max_x_coord > -5:
+        isGroup = False
+        if ltpoint[0] - msg_x_coord <= 300 and ltpoint[0] - msg_x_coord > -5:
             isMsg = True
-        elif abs(ltpoint[0] - second_largest_x) <= 5:
-            isName = True
-        # print(item)
-        # print(isMsg, isName)
-        if isMsg:
             type = "msg"
-        elif isName:
+        elif abs(ltpoint[0] - name_x_coord) <= 5:
+            isName = True
             type = "name"
+        elif abs(ltpoint[0] - group_x_coord) <= 10:
+            isGroup = True
+            type = "group"
         else:
             type = "other"
+        # print(item)
+        # print(isMsg, isName)
         item.append(type)
 
-        if isMsg or isName:
+        if isMsg or isName or isGroup:
             # print(point)
             merged = False
             for index, merged_item in enumerate(merged_data):
@@ -305,14 +324,15 @@ def autoreply():
         item[1] = remove_number_prefix(item[1])
         ltpoint = item[0][0]
         lbpoint = item[0][3]
-        if not group_name and abs(max_x_coord - ltpoint[0] - 46) <= 31:
+        if not group_name and abs(msg_x_coord - ltpoint[0] - 46) <= 31:
             # print(item)
             group_name = item[1]
             print(group_name)
 
-        merge(item, merged_data, max_x_coord, second_largest_x)
+        merge(item, merged_data, msg_x_coord, name_x_coord)
 
     print(merged_data)
+
 
     # 提取共有部分
     fixed_name = group_name.replace(' ', '').split('(')[0].split('（')[0]
@@ -347,16 +367,26 @@ def autoreply():
         old = json.loads(f.read())
         filtered_reverse_merged_data = []
         found = False
+        needChange = False
+        isBlank = True
         for item in reverse_merged_data:
-            if not prob_changed and item[1] != '':
+            if item[3] == "msg":
+                isBlank = False
+            if not prob_changed and item[1] != '' and item[3] == "msg":
                 print("item", item)
                 print("previous_content", previous_content)
                 if previous_content == item[1]:
-                    prob = min(prob * 1.1, 0.999)
+                    prob = min(prob * 1.1, 0.99)
+                    needChange = True
+                    # clickGroup(merged_data)
                 else:
-                    prob = prob * 0.9
+                    prob = max(prob * 0.9, 0.001)
                     # Update the state with the new data
                     update_first_x_coords(first_x_coords)
+                    if not any(name in group_name for name in config["group_name_white_list"]):
+                        needChange = True
+                        # clickGroup(merged_data)
+                    
                 update_prob(prob)
                 print("prob", prob)
                 previous_content = item[1]
@@ -364,7 +394,9 @@ def autoreply():
                 
             for old_item in old:
                 similarity_score = similarity(item[1], old_item[1])
-                if similarity_score >= 0.6:
+                
+                if similarity_score >= 0.8:
+                    print(similarity_score)
                     found = True
                     break
             if not found:
@@ -383,9 +415,11 @@ def autoreply():
                     before = before[:-1]
                     name = last_item[1]
                 history = '\n'.join(
-                    (item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in before[-100:])
+                    (item[1] + ':' if len(item) >= 4 and item[3] == 'name' else item[1]) for item in before[-100:] if len(item) >= 4 and item[3] in ('name', 'msg')
+                )
 
-                prompt = f"历史消息：{history}。这个消息来自微信群{group_name}{name}，假设你是微信群的成员，请采用非正式文风，用50字以内回答或建议: {item[1]}？\n"
+
+                prompt = f"历史消息：{history}。下面这个消息来自微信群{group_name}，假设你是微信群的成员，请采用非正式文风，针对这个内容用最多50字提出更高层次的建议或问题: {item[1]}？\n"
                 print(prompt)
 
                 message = "Hello, this is a test message!"
@@ -393,9 +427,9 @@ def autoreply():
                     response = get_completion(
                         prompt, "gpt-4") + "\n(人工智能生成，可能有错)"
                     print(response)
-                    # if (not "无法提供" in response) and (not "0" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
-                    # # # Send a text message
-                    #     activate_wechat_and_send_message(message=response)
+                    if (not "无法提供" in response) and (not "不知道" in response) and (not "不清楚" in response) and (not "不了解" in response) and (not "不太" in response) and (not "不理解" in response):
+                    # # Send a text message
+                        activate_wechat_and_send_message(message=response)
                 else:
                     response = get_completion(
                         prompt, "gpt-3.5-turbo") + "\n(人工智能生成，可能有错)"
@@ -410,7 +444,7 @@ def autoreply():
                 if len(links) > 0:
                     url = links[0]
                 
-            if not requested and item[0][1][0] - item[0][0][0] < 200 and item[0][3][1] - item[0][0][1] > 30 and item[0][0][0] > 400 and item[0][0][0] < 500 and any(name in group_name for name in config["group_name_white_list"]):
+            if not requested and (item[0][1][0] - item[0][0][0] < 200) and (item[0][3][1] - item[0][0][1] > 30) and (item[0][0][0] > 400) and (item[0][0][0] < 500) and any(name in group_name for name in config["group_name_white_list"]):
                 pyautogui.click(item[0][0][0] + 10, item[0][0][1] + 10)
                 time.sleep(5)
                 screenshot = pyautogui.screenshot()
@@ -435,6 +469,7 @@ def autoreply():
                 # print(markdown_content)
                 response = get_completion(markdown_excerpt + "总结一下上述内容：", "gpt-3.5-turbo") + "\n(人工智能生成)"
                 print(response)
+                item[1] += "\n" + response
                 if any(name in group_name for name in config["group_name_white_list"]):
                     # Send a screenshot
                     activate_wechat_and_send_message(message=response)
@@ -451,6 +486,10 @@ def autoreply():
             f.seek(0)
             f.write(json.dumps(old).encode('utf-8'))
             f.truncate()  # 删除文件中任何剩余的内容
+            
+        if needChange or isBlank:
+            clickGroup(merged_data)
+        
 
 
 while True:

@@ -1,3 +1,5 @@
+chcp 65001
+
 do {
     python .\screenshot.py 2>&1 | ForEach-Object {
         Write-Host $_ -NoNewline
